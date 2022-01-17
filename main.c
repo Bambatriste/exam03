@@ -2,8 +2,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include "minipaint.h"
+//#include "minipaint.h"
 
+#define ERROR_ARGS "Error: argument\n"
+#define	ERROR_FD "Error: Operation file corrupted\n"
+
+typedef struct draw_zone
+{
+	int height;
+	int width;
+	char draw_char;
+	char *zone;
+}	t_zone;
+
+typedef struct circle
+{
+	char type;
+	float x;
+	float y;
+	float radius;
+	char draw_char;
+}	t_circle;
 
 int ft_strlen(char *str)
 {
@@ -32,7 +51,7 @@ int print_zone(t_zone *zone)
 	{
 		while (j < zone->width)
 		{
-			ft_putchar(zone->zone[i * zone->height + j]);
+			ft_putchar(zone->zone[i * zone->width + j]);
 			j++;
 		}
 		ft_putchar('\n');
@@ -42,6 +61,13 @@ int print_zone(t_zone *zone)
 	return (0);
 }
 
+int zone_validity(int value)
+{
+	if (value > 300 || value <= 0)
+		return (0);
+	return (1);
+}
+
 int init_zone(FILE *fd, t_zone *zone)
 {
 	int ret;
@@ -49,14 +75,14 @@ int init_zone(FILE *fd, t_zone *zone)
 	int j = 0;
 
 	ret = fscanf(fd, "%d %d %c\n" , &zone->width, &zone->height, &zone->draw_char);
-	if (ret != 3)
+	if (ret != 3 || !zone_validity(zone->width) || !zone_validity(zone->height))
 		return (-1);
 	zone->zone = malloc(sizeof(char) * (zone->height * zone->width));
 	while (i < zone->height)
 	{
 		while (j < zone->width)
 		{
-			zone->zone[i * zone->height + j] = zone->draw_char;
+			zone->zone[i * zone->width + j] = zone->draw_char;
 			j++;
 		}
 		j = 0;
@@ -68,20 +94,26 @@ int init_zone(FILE *fd, t_zone *zone)
  int	is_in_circle(float x, float y, t_circle *circle)
 {
 	float dist;
-
 	float x_diff;
 	float y_diff;
+	float delta_diff;
 
 	x_diff = (x - circle->x) * (x - circle->x);
 	y_diff = (y - circle->y) * (y - circle->y);
-
-
 	dist = sqrtf(x_diff + y_diff);
-	//printf("dist : %f", dist);
-	if (dist < circle->radius)
-		return (1);
+	delta_diff = dist - circle->radius;
+	if (delta_diff < 0)
+	{
+		if (circle->type == 'C')
+			return (1);
+		else
+		{
+			if (delta_diff < -1.00000)
+				return (0);
+			return (1);
+		}
+	}
 	return (0);
-
 }
 
 int draw_circle(t_zone *zone, t_circle *circle)
@@ -94,7 +126,7 @@ int draw_circle(t_zone *zone, t_circle *circle)
 		while (j < zone->width)
 		{
 			if (is_in_circle((float)j, (float)i , circle))
-				zone->zone[i * zone->height + j] = circle->draw_char;
+				zone->zone[i * zone->width + j] = circle->draw_char;
 			j++;
 		}
 		j = 0;
@@ -109,7 +141,6 @@ int	add_circles(t_zone *zone, FILE *fd)
 
 	t_circle circle;
 
-
 	ret = fscanf(fd, "%c %f %f %f %c\n", &circle.type, &circle.x,
 		 &circle.y, &circle.radius, &circle.draw_char);
 	while (ret == 5)
@@ -118,6 +149,8 @@ int	add_circles(t_zone *zone, FILE *fd)
 		ret = fscanf(fd, "%c %f %f %f %c\n", &circle.type,
 			 &circle.x, &circle.y, &circle.radius, &circle.draw_char);
 	}
+	if (ret != -1)
+		return (-1);
 	return (0);
 }
 
@@ -130,18 +163,23 @@ int main(int ac, char **av)
 	if (ac != 2)
 	{
 		ft_putstr_fd(ERROR_ARGS, 1);
-		return (0);
+		return (1);
 	}
 	pathname = av[1];
 	fd = fopen(pathname, "r");
 	if (fd == NULL)
 	{
 		ft_putstr_fd(ERROR_FD, 1);
-		return (0);
+		return (1);
 	}
-	init_zone(fd, &drawzone);
-	add_circles(&drawzone, fd);
+	if (init_zone(fd, &drawzone) == -1)
+		return (1);
+	if (add_circles(&drawzone, fd) == -1)
+	{
+		free(drawzone.zone);
+		return (1);
+	}
 	print_zone(&drawzone);
-		
-		
+	free(drawzone.zone);
+	return (0);
 }
